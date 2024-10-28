@@ -1,0 +1,19 @@
+{
+    "manifest_version": 2,
+    "name": "Leetcode Sync",
+    "version": "1.0",
+  
+    "description": "Uploads all solved Leetcode problems when a submission is accepted.",
+  
+    "icons": {
+      "48": "icons/border-48.png"
+    },
+  
+    "content_scripts": [
+      {
+        "matches": ["*://*.leetcode.com/*"],
+        "js": ["leetcode_sync.js"]
+      }
+    ]
+  }
+  
