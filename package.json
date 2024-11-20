@@ -1,0 +1,26 @@
+{
+  "name": "leetcode_sync",
+  "version": "1.0.0",
+  "description": "",
+  "main": "leetcode_sync.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/galegoer/leetcode_sync.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/galegoer/leetcode_sync/issues"
+  },
+  "homepage": "https://github.com/galegoer/leetcode_sync#readme",
+  "dependencies": {
+    "crypto-es": "^2.1.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2",
+    "octokit": "^4.0.2"
+  }
+}

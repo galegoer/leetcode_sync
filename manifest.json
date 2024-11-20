@@ -8,11 +8,17 @@
     "icons": {
       "48": "icons/border-48.png"
     },
+    "background": {
+      "scripts": ["leetcode_sync.js"],
+      "type": "module",
+      "persistent": false
+    },
   
     "content_scripts": [
       {
-        "matches": ["*://*.leetcode.com/*"],
-        "js": ["leetcode_sync.js"]
+        "matches": ["*://*.leetcode.com/*submissions/*"],
+        "js": ["leetcode_sync.js"],
+        "run_at": "document_end"
       }
     ]
   }
