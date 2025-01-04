@@ -1,7 +1,3 @@
-import fetch from "node-fetch";
-import dotenv from "dotenv";
-dotenv.config();
-
 /* Enum for languages supported by LeetCode. */
 const languages = {
     Python: '.py',
@@ -61,6 +57,7 @@ function getFileName() {
 }
 
 function addButton() {
+    console.log('inside add button');
     // check if already exists
     if (document.getElementsByClassName('upload-git').length > 0) {
         return
@@ -112,7 +109,7 @@ async function uploadGit(owner, repo, path, message, content, language) {
     method: 'PUT',
     headers: {
         'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${process.env.AUTH_TOKEN}`,
+        'Authorization': `Bearer ${AUTH_TOKEN}`,
         'X-GitHub-Api-Version': '2022-11-28'
     },
     body: JSON.stringify({
@@ -127,12 +124,46 @@ async function uploadGit(owner, repo, path, message, content, language) {
 }
 
 // TODO: Adjust to load only when you click on page with solution
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-        addButton();
-    }, false);
-} else {
-    console.log("test");
-    console.log("Heilo");
-    test();
+
+function waitForElm(selector) {
+    return new Promise(resolve => {
+        const result = document.evaluate(
+            selector,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+        );
+        if (result.singleNodeValue) {
+            observer.disconnect();
+            return resolve(result.singleNodeValue);
+        }
+
+        const observer = new MutationObserver(mutations => {
+            const result = document.evaluate(
+                selector,
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null
+            );
+            if (result.singleNodeValue) {
+                observer.disconnect();
+                resolve(result.singleNodeValue);
+            }
+        });
+
+        // If you get "parameter 1 is not of type 'Node'" error, see https://stackoverflow.com/a/77855838/492336
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    });
 }
+const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div/div/div[2]/div/div[1]/div[2]/button";
+
+waitForElm(xpath).then((elm) => {
+    console.log('Element is ready');
+    console.log(elm.textContent);
+    addButton();
+});
