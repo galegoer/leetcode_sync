@@ -29,7 +29,16 @@ const LANG_CLASS = 'bg-fill-primary dark:bg-fill-primary text-label-2 dark:text-
 const STATS_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
 const UNITS_CLASS = "text-sd-muted-foreground text-sm"; //runtime and memory units
 
-
+browser.runtime.onMessage.addListener((message) => {
+    if (message.action === "openPopup") {
+        browser.windows.create({
+            url: browser.runtime.getURL("popup.html"),
+            type: "popup",
+            width: 600,
+            height: 600
+        }).catch((error) => console.error("Error opening popup:", error));
+    }
+});
 
 function getTagContents(className, num_tags=1) {
     const tags = []
@@ -47,12 +56,6 @@ function getTagContents(className, num_tags=1) {
         }
     }
     return tags;
-}
-
-function getLanguage() {
-    if(languages[elem] !== undefined) {
-        return languages[elem];
-    }
 }
 
 function getFileName() {
@@ -87,15 +90,17 @@ function addButton() {
             // TODO: Error handling
             let units = getTagContents(UNITS_CLASS, 2);
             let stats = getTagContents(STATS_CLASS, 4);
-            console.log("Language: " + getTagContents(LANG_CLASS));
+            // TODO: This could return undefined
+            let language = languages[getTagContents(LANG_CLASS)];
+            console.log("Language: " + language);
             let runtime = "Runtime: " + stats[0] + units[0] + " Beats: " + stats[1];
             console.log(runtime);
             let memory = "Memory: " + stats[2] + units[1] + " Beats: " + stats[3];
             console.log(memory);
             // Need to click on element first i think
-            console.log(pullDescription());
+            // console.log(pullDescription());
             
-            // uploadGit('galegoer', getFileName(), btoa(pullCode()), getLanguage());
+            uploadGit('galegoer', getFileName(), btoa(pullCode()), language);
         }
     });
 }
@@ -140,6 +145,10 @@ async function uploadGit(owner, filename, content, language) {
     .then((result) => {
         AUTH_PROPERTIES["repoPath"] = result.repoPath;
     });
+
+    if (AUTH_PROPERTIES === undefined || AUTH_PROPERTIES.length != 2) {
+        browser.runtime.sendMessage({ action: "openPopup" });
+    }
 
     // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
     fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${filename}${language}`, {
