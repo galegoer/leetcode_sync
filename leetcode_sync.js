@@ -1,3 +1,5 @@
+const AUTH_PROPERTIES = {};
+
 /* Enum for languages supported by LeetCode. */
 const languages = {
     Python: '.py',
@@ -23,7 +25,8 @@ const languages = {
 
 const LANG_CLASS = 'bg-fill-primary dark:bg-fill-primary text-label-2 dark:text-dark-label-2 flex items-center gap-1 rounded-[9px] px-1.5 py-[1px] text-xs'
 
-const RUN_MEM_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
+// TODO: This may change if user clicks memory or runtime use different reference
+const STATS_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
 const UNITS_CLASS = "text-sd-muted-foreground text-sm"; //runtime and memory units
 
 
@@ -81,13 +84,31 @@ function addButton() {
     containers[0].addEventListener('click', function(event) {
         if (event.target.classList.contains('upload-git')) {
             // code to execute when button is clicked
-            console.log(getTagContents(BEATS_CLASS, 2));
-            console.log(getTagContents(RUNTIME_MS_CLASS));
-            console.log(getTagContents(MEMORY_KB_CLASS));
+            // TODO: Error handling
+            let units = getTagContents(UNITS_CLASS, 2);
+            let stats = getTagContents(STATS_CLASS, 4);
             console.log("Language: " + getTagContents(LANG_CLASS));
-            // uploadGit('galegoer', 'leetcode_sync', getFileName(), btoa(pullCode()), getLanguage());
+            let runtime = "Runtime: " + stats[0] + units[0] + " Beats: " + stats[1];
+            console.log(runtime);
+            let memory = "Memory: " + stats[2] + units[1] + " Beats: " + stats[3];
+            console.log(memory);
+            // Need to click on element first i think
+            console.log(pullDescription());
+            
+            // uploadGit('galegoer', getFileName(), btoa(pullCode()), getLanguage());
         }
     });
+}
+
+function pullDescription() {
+    let xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[4]/div/div[1]";
+    let description = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    return description.textContent;
+}
+
+// TODO
+function cleanDescription() {
+    // Take out from start and end
 }
 
 function pullCode() {
@@ -99,24 +120,41 @@ function pullCode() {
     });
 }
 
-async function uploadGit(owner, repo, path, message, content, language) {
+async function uploadGit(owner, filename, content, language) {
+    // TODO: Maybe specify commiter? Might be done by PAT already though
     // const committer = {
     //     name: 'name',
     //     email: 'email@github.com'
     // };
 
-    fetch(`https://api.github.com/repos/${owner}/${repo}}/contents/${path}${language}`, {
+    // TODO: maybe timestamp with it to  be unique?
+    let commitMessage = `Uploading solution for ${filename}`;
+
+    // TODO: Auth properties may be undefined for either or both, handle
+    browser.storage.local.get("pat")
+    .then((result) => {
+        AUTH_PROPERTIES["pat"] = result.pat;
+    });
+
+    browser.storage.local.get("repoPath")
+    .then((result) => {
+        AUTH_PROPERTIES["repoPath"] = result.repoPath;
+    });
+
+    // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
+    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${filename}${language}`, {
     method: 'PUT',
     headers: {
         'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_TOKEN}`,
+        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
         'X-GitHub-Api-Version': '2022-11-28'
     },
-    body: JSON.stringify({
-        message,
-        // committer,
-        content
-    })
+    body: 
+        JSON.stringify({
+            commitMessage,
+            // committer,
+            content
+        })
     })
     .then(response => response.json())
     .then(data => console.log(data))
