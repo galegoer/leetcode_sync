@@ -1,0 +1,30 @@
+{
+    "manifest_version": 2,
+    "name": "Leetcode Sync",
+    "version": "1.0",
+    "description": "Choose to upload any solved Leetcode problems when a submission is accepted.",
+    "browser_action": {
+      "default_icon": "icons/border-48.png",
+      "default_popup": "popup.html"
+    },
+    "permissions": [
+      "storage"
+    ],
+    "icons": {
+      "48": "icons/border-48.png"
+    },
+    "background": {
+      "scripts": ["leetcode_sync.js"],
+      "type": "module",
+      "persistent": false
+    },
+  
+    "content_scripts": [
+      {
+        "matches": ["*://*.leetcode.com/*submissions/*"],
+        "js": ["leetcode_sync.js"],
+        "run_at": "document_end"
+      }
+    ]
+  }
+  
