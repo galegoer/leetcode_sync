@@ -58,8 +58,8 @@ function getTagContents(className, num_tags=1) {
     return tags;
 }
 
-function getFileName() {
-    return "temp_file";
+function getFolderName() {
+    return window.location.href.split("problems/")[1].split("/")[0];
 }
 
 function addButton() {
@@ -100,7 +100,7 @@ function addButton() {
             // Need to click on element first i think
             // console.log(pullDescription());
             
-            uploadGit('galegoer', getFileName(), btoa(pullCode()), language);
+            uploadGit('galegoer', getFolderName(), btoa(pullCode()), language);
         }
     });
 }
@@ -108,6 +108,32 @@ function addButton() {
 function pullDescription() {
     let xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[4]/div/div[1]";
     let description = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    console.log(description);
+    if (!description) {
+        // Retrieve description
+        let url = window.location.href.split("/submissions")[0]
+        fetch(`${url}/description`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            console.log(html);
+            // Parse the HTML and evaluate the XPath
+            // let dom = new JSDOM(html);
+            let doc = dom.window.document;
+            console.log(doc);
+            description = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            if (description) {
+                console.log("Description retrieved:", description.textContent);
+            } else {
+                console.error("Description not found in fetched content.");
+            }
+        })
+        .catch(error => console.error("Error fetching URL:", error));
+    }
     return description.textContent;
 }
 
@@ -125,7 +151,7 @@ function pullCode() {
     });
 }
 
-async function uploadGit(owner, filename, content, language) {
+async function uploadGit(owner, questionName, content, language) {
     // TODO: Maybe specify commiter? Might be done by PAT already though
     // const committer = {
     //     name: 'name',
@@ -133,7 +159,8 @@ async function uploadGit(owner, filename, content, language) {
     // };
 
     // TODO: maybe timestamp with it to  be unique?
-    let commitMessage = `Uploading solution for ${filename}`;
+    let commitMessageFile = `Uploading solution for ${questionName}`;
+    let commitMessageReadMe = `Uploading readme for ${questionName}`;
 
     // TODO: Auth properties may be undefined for either or both, handle
     browser.storage.local.get("pat")
@@ -150,8 +177,10 @@ async function uploadGit(owner, filename, content, language) {
         browser.runtime.sendMessage({ action: "openPopup" });
     }
 
+    // TODO: Make separate function
     // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
-    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${filename}${language}`, {
+    const readMeURL = `https://api.github.com/repos/${owner}/contents/${questionName}/README.md`;
+    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${questionName}/${questionName}${language}`, {
     method: 'PUT',
     headers: {
         'Accept': 'application/vnd.github+json',
@@ -160,7 +189,26 @@ async function uploadGit(owner, filename, content, language) {
     },
     body: 
         JSON.stringify({
-            commitMessage,
+            commitMessageFile,
+            // committer,
+            content
+        })
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error(error));
+
+    // Upload readme
+    fetch(`https://api.github.com/repos/${owner}/contents/${questionName}/README.md`, {
+    method: 'PUT',
+    headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
+        'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: 
+        JSON.stringify({
+            commitMessageReadMe,
             // committer,
             content
         })
@@ -212,5 +260,6 @@ const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div/di
 waitForElm(xpath).then((elm) => {
     console.log('Element is ready');
     console.log(elm.textContent);
-    addButton();
+    // addButton();
+    // pullDescription();
 });
