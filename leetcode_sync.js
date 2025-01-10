@@ -98,11 +98,18 @@ function addButton() {
             let memory = "Memory: " + stats[2] + units[1] + " Beats: " + stats[3];
             console.log(memory);
             // Need to click on element first i think
-            // console.log(pullDescription());
+            let desc = pullDescription();
+            console.log(desc);
             
-            uploadGit('galegoer', getFolderName(), btoa(pullCode()), language);
+            // uploadGit('galegoer', getFolderName(), btoa(pullCode()), language);
         }
     });
+}
+
+function cleanDescription(html) {
+    let temp = html.split("\"/><meta property=\"og:url")[0];
+    let desc = temp.split("<meta name=\"description\" content=\"");
+    return desc[1];
 }
 
 function pullDescription() {
@@ -110,8 +117,8 @@ function pullDescription() {
     let description = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
     console.log(description);
     if (!description) {
-        // Retrieve description
-        let url = window.location.href.split("/submissions")[0]
+        // For some reason just fetching whatever is in window.location.href also works but did this anyways
+        let url = window.location.href.split("/submissions")[0];
         fetch(`${url}/description`)
         .then(response => {
             if (!response.ok) {
@@ -120,27 +127,21 @@ function pullDescription() {
             return response.text();
         })
         .then(html => {
-            console.log(html);
-            // Parse the HTML and evaluate the XPath
-            // let dom = new JSDOM(html);
-            let doc = dom.window.document;
-            console.log(doc);
-            description = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            // console.log(html);
+            let description = cleanDescription(html);;
             if (description) {
-                console.log("Description retrieved:", description.textContent);
+                console.log("Description retrieved in fetch");
+                return description;
             } else {
                 console.error("Description not found in fetched content.");
             }
         })
         .catch(error => console.error("Error fetching URL:", error));
+    } else {
+        return description;
     }
-    return description.textContent;
 }
 
-// TODO
-function cleanDescription() {
-    // Take out from start and end
-}
 
 function pullCode() {
     return document.getElementsByTagName('code')[0]
@@ -235,6 +236,7 @@ function waitForElm(selector) {
         }
 
         const observer = new MutationObserver(mutations => {
+            const selector = "/html/body/div[1]/div[2]/div/div/div[5]/div/div/div[6]/div/div/div/div[2]/div/div[1]/div[2]/button";
             const result = document.evaluate(
                 selector,
                 document,
@@ -242,7 +244,9 @@ function waitForElm(selector) {
                 XPathResult.FIRST_ORDERED_NODE_TYPE,
                 null
             );
+            console.log('checking');
             if (result.singleNodeValue) {
+                console.log('found');
                 observer.disconnect();
                 resolve(result.singleNodeValue);
             }
@@ -255,11 +259,12 @@ function waitForElm(selector) {
         });
     });
 }
-const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div/div/div[2]/div/div[1]/div[2]/button";
+
+// TODO: May not be always like this might need to test with others 
+const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[5]/div/div/div/div[2]/div/div[1]/div[2]/button";
 
 waitForElm(xpath).then((elm) => {
     console.log('Element is ready');
     console.log(elm.textContent);
-    // addButton();
-    // pullDescription();
+    addButton();
 });
