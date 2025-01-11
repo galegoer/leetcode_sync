@@ -58,88 +58,45 @@ function getTagContents(className, num_tags=1) {
     return tags;
 }
 
-function getFolderName() {
-    return window.location.href.split("problems/")[1].split("/")[0];
+function getFolderName(questionId) {
+    return `${questionId} - ${window.location.href.split("problems/")[1].split("/")[0]}`;
 }
 
-function addButton() {
-    console.log('inside add button');
-    // check if already exists
-    if (document.getElementsByClassName('upload-git').length > 0) {
-        return
-    }
-    let nestedHTML = `
-    <button class="upload-git whitespace-nowrap focus:outline-none text-label-r bg-green-s dark:bg-dark-green-s hover:bg-green-3 dark:hover:bg-dark-green-3 flex items-center justify-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium">
-        <div class="relative text-[14px] leading-[normal] p-[1px] before:block before:h-3.5 before:w-3.5">
-            <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                <path fill-rule="evenodd" d="M12 3a1 1 0 0 1 .78.375l4 5a1 1 0 1 1-1.56 1.25L13 6.85V14a1 1 0 1 1-2 0V6.85L8.78 9.626a1 1 0 1 1-1.56-1.25l4-5A1 1 0 0 1 12 3ZM9 14v-1H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-4v1a3 3 0 1 1-6 0Zm8 2a1 1 0 1 0 0 2h.01a1 1 0 1 0 0-2H17Z" clip-rule="evenodd"/>
-            </svg>
-        </div>
-        Upload to Github
-    </button>`;
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(nestedHTML, 'text/html');
-    const button = doc.querySelector('.upload-git');
+function cleanHtml(html) {
+    let questionId = html.split("questionFrontendId\":\"")[1].split("\",")[0];
+    let temp = html.split("\"/><meta property=\"og:title")[0];
+    let desc = temp.split("<meta name=\"description\" content=\"Can you solve this real interview question? ");
+    return {"description": desc[1], "questionId":questionId};
+}
 
-    let containers = document.getElementsByClassName("flex w-full items-center justify-between gap-4");
-    containers[0].insertAdjacentHTML('beforeend', nestedHTML);
+// TODO: Adjust later to format in one place as formatting is here and in the pulling code
+function formatReadMe(description, runtime, memory, questionId) {
+    let title = "# Leetcode Problem " + questionId + " - "+ description.split(" - ")[0] + "\n";
+    let stats = "## My Solution Stats\n" + runtime + memory;
+    let desc = "## Description \n" + description.split(" - ")[1];
+    return title + stats + desc;
+}
 
-    containers[0].addEventListener('click', function(event) {
-        if (event.target.classList.contains('upload-git')) {
-            // code to execute when button is clicked
-            // TODO: Error handling
-            let units = getTagContents(UNITS_CLASS, 2);
-            let stats = getTagContents(STATS_CLASS, 4);
-            // TODO: This could return undefined
-            let language = languages[getTagContents(LANG_CLASS)];
-            console.log("Language: " + language);
-            let runtime = "Runtime: " + stats[0] + units[0] + " Beats: " + stats[1];
-            console.log(runtime);
-            let memory = "Memory: " + stats[2] + units[1] + " Beats: " + stats[3];
-            console.log(memory);
-            // Need to click on element first i think
-            let desc = pullDescription();
-            console.log(desc);
-            
-            // uploadGit('galegoer', getFolderName(), btoa(pullCode()), language);
+function pullInfo() {
+    // For some reason just fetching whatever is in window.location.href also works but did this anyways
+    let url = window.location.href.split("/submissions")[0];
+    return fetch(`${url}/description`)
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
         }
-    });
-}
-
-function cleanDescription(html) {
-    let temp = html.split("\"/><meta property=\"og:url")[0];
-    let desc = temp.split("<meta name=\"description\" content=\"");
-    return desc[1];
-}
-
-function pullDescription() {
-    let xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[4]/div/div[1]";
-    let description = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    console.log(description);
-    if (!description) {
-        // For some reason just fetching whatever is in window.location.href also works but did this anyways
-        let url = window.location.href.split("/submissions")[0];
-        fetch(`${url}/description`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.text();
-        })
-        .then(html => {
-            // console.log(html);
-            let description = cleanDescription(html);;
-            if (description) {
-                console.log("Description retrieved in fetch");
-                return description;
-            } else {
-                console.error("Description not found in fetched content.");
-            }
-        })
-        .catch(error => console.error("Error fetching URL:", error));
-    } else {
-        return description;
-    }
+        return response.text();
+    })
+    .then(html => {
+        let questionInfo = cleanHtml(html);
+        if (questionInfo) {
+            console.log("Question Info retrieved in fetch");
+            return questionInfo;
+        } else {
+            console.error("Question Info not found in fetched content.");
+        }
+    })
+    .catch(error => console.error("Error fetching URL:", error));
 }
 
 
@@ -219,36 +176,70 @@ async function uploadGit(owner, questionName, content, language) {
     .catch(error => console.error(error));
 }
 
-// TODO: Adjust to load only when you click on page with solution
+function addButton() {
+    console.log('inside add button');
+    // check if already exists
+    if (document.getElementsByClassName('upload-git').length > 0) {
+        return
+    }
+    let nestedHTML = `
+    <button class="upload-git whitespace-nowrap focus:outline-none text-label-r bg-green-s dark:bg-dark-green-s hover:bg-green-3 dark:hover:bg-dark-green-3 flex items-center justify-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium">
+        <div class="relative text-[14px] leading-[normal] p-[1px] before:block before:h-3.5 before:w-3.5">
+            <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M12 3a1 1 0 0 1 .78.375l4 5a1 1 0 1 1-1.56 1.25L13 6.85V14a1 1 0 1 1-2 0V6.85L8.78 9.626a1 1 0 1 1-1.56-1.25l4-5A1 1 0 0 1 12 3ZM9 14v-1H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-4v1a3 3 0 1 1-6 0Zm8 2a1 1 0 1 0 0 2h.01a1 1 0 1 0 0-2H17Z" clip-rule="evenodd"/>
+            </svg>
+        </div>
+        Upload to Github
+    </button>`;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(nestedHTML, 'text/html');
+    const button = doc.querySelector('.upload-git');
 
+    let containers = document.getElementsByClassName("flex w-full items-center justify-between gap-4");
+    containers[0].insertAdjacentHTML('beforeend', nestedHTML);
+
+    containers[0].addEventListener('click', function(event) {
+        if (event.target.classList.contains('upload-git')) {
+            // code to execute when button is clicked
+            // TODO: Error handling
+            let units = getTagContents(UNITS_CLASS, 2);
+            let stats = getTagContents(STATS_CLASS, 4);
+            // TODO: This could return undefined
+            let language = languages[getTagContents(LANG_CLASS)];
+            console.log("Language: " + language);
+            let runtime = "### Runtime: " + stats[0] + units[0] + "\n### Beats: " + stats[1] + " of other submissions\n";
+            console.log(runtime);
+            let memory = "### Memory: " + stats[2] + units[1] + "\n### Beats: " + stats[3] + " of other submissions\n";
+            console.log(memory);
+            // Need to click on element first i think
+            pullInfo().then(info => {
+                // console.log(desc);
+                let readme = formatReadMe(info["description"], runtime, memory, info["questionId"]);
+                console.log(readme);
+                console.log(getFolderName(info["questionId"]));
+                // uploadGit('galegoer', getFolderName(info["questionId"]), btoa(pullCode()), language);
+            });
+            
+        }
+    });
+}
+
+// TODO: Adjust to load only when you click on page with solution
 function waitForElm(selector) {
     return new Promise(resolve => {
-        const result = document.evaluate(
-            selector,
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null
-        );
-        if (result.singleNodeValue) {
+        const element = Array.from(document.querySelectorAll('button'))
+        .find(el => el.textContent === selector);
+        if (element) {
             observer.disconnect();
-            return resolve(result.singleNodeValue);
+            return resolve(element);
         }
 
         const observer = new MutationObserver(mutations => {
-            const selector = "/html/body/div[1]/div[2]/div/div/div[5]/div/div/div[6]/div/div/div/div[2]/div/div[1]/div[2]/button";
-            const result = document.evaluate(
-                selector,
-                document,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null
-            );
-            console.log('checking');
-            if (result.singleNodeValue) {
-                console.log('found');
+            const element = Array.from(document.querySelectorAll('button'))
+            .find(el => el.textContent === selector);
+            if (element) {
                 observer.disconnect();
-                resolve(result.singleNodeValue);
+                resolve(element);
             }
         });
 
@@ -260,10 +251,8 @@ function waitForElm(selector) {
     });
 }
 
-// TODO: May not be always like this might need to test with others 
-const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[5]/div/div/div/div[2]/div/div[1]/div[2]/button";
-
-waitForElm(xpath).then((elm) => {
+const buttonText = "Solution";
+waitForElm(buttonText).then((elm) => {
     console.log('Element is ready');
     console.log(elm.textContent);
     addButton();
