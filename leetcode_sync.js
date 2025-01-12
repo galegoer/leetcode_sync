@@ -58,8 +58,122 @@ function getTagContents(className, num_tags=1) {
     return tags;
 }
 
-function getFileName() {
-    return "temp_file";
+function getFolderName(questionId) {
+    return `${questionId} - ${window.location.href.split("problems/")[1].split("/")[0]}`;
+}
+
+function cleanHtml(html) {
+    let questionId = html.split("questionFrontendId\":\"")[1].split("\",")[0];
+    let temp = html.split("\"/><meta property=\"og:title")[0];
+    let desc = temp.split("<meta name=\"description\" content=\"Can you solve this real interview question? ");
+    return {"description": desc[1], "questionId":questionId};
+}
+
+// TODO: Adjust later to format in one place as formatting is here and in the pulling code
+function formatReadMe(description, runtime, memory, questionId) {
+    let title = "# Leetcode Problem " + questionId + " - "+ description.split(" - ")[0] + "\n";
+    let stats = "## My Solution Stats\n" + runtime + memory;
+    let desc = "## Description \n" + description.split(" - ")[1];
+    return title + stats + desc;
+}
+
+function pullInfo() {
+    // For some reason just fetching whatever is in window.location.href also works but did this anyways
+    let url = window.location.href.split("/submissions")[0];
+    return fetch(`${url}/description`)
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.text();
+    })
+    .then(html => {
+        let questionInfo = cleanHtml(html);
+        if (questionInfo) {
+            console.log("Question Info retrieved in fetch");
+            return questionInfo;
+        } else {
+            console.error("Question Info not found in fetched content.");
+        }
+    })
+    .catch(error => console.error("Error fetching URL:", error));
+}
+
+
+function pullCode() {
+    return document.getElementsByTagName('code')[0]
+    .innerText?.replace(/\\u[\dA-F]{4}/gi, function (match) {
+        return String.fromCharCode(
+            parseInt(match.replace(/\\u/g, ''), 16),
+        );
+    });
+}
+
+async function uploadGit(owner, questionName, content, language) {
+    // TODO: Maybe specify commiter? Might be done by PAT already though
+    // const committer = {
+    //     name: 'name',
+    //     email: 'email@github.com'
+    // };
+
+    // TODO: maybe timestamp with it to  be unique?
+    let commitMessageFile = `Uploading solution for ${questionName}`;
+    let commitMessageReadMe = `Uploading readme for ${questionName}`;
+
+    // TODO: Auth properties may be undefined for either or both, handle
+    browser.storage.local.get("pat")
+    .then((result) => {
+        AUTH_PROPERTIES["pat"] = result.pat;
+    });
+
+    browser.storage.local.get("repoPath")
+    .then((result) => {
+        AUTH_PROPERTIES["repoPath"] = result.repoPath;
+    });
+
+    if (AUTH_PROPERTIES === undefined || AUTH_PROPERTIES.length != 2) {
+        browser.runtime.sendMessage({ action: "openPopup" });
+    }
+
+    // TODO: Make separate function
+    // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
+    const readMeURL = `https://api.github.com/repos/${owner}/contents/${questionName}/README.md`;
+    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${questionName}/${questionName}${language}`, {
+    method: 'PUT',
+    headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
+        'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: 
+        JSON.stringify({
+            commitMessageFile,
+            // committer,
+            content
+        })
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error(error));
+
+    // Upload readme
+    fetch(`https://api.github.com/repos/${owner}/contents/${questionName}/README.md`, {
+    method: 'PUT',
+    headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
+        'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: 
+        JSON.stringify({
+            commitMessageReadMe,
+            // committer,
+            content
+        })
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error(error));
 }
 
 function addButton() {
@@ -93,110 +207,39 @@ function addButton() {
             // TODO: This could return undefined
             let language = languages[getTagContents(LANG_CLASS)];
             console.log("Language: " + language);
-            let runtime = "Runtime: " + stats[0] + units[0] + " Beats: " + stats[1];
+            let runtime = "### Runtime: " + stats[0] + units[0] + "\n### Beats: " + stats[1] + " of other submissions\n";
             console.log(runtime);
-            let memory = "Memory: " + stats[2] + units[1] + " Beats: " + stats[3];
+            let memory = "### Memory: " + stats[2] + units[1] + "\n### Beats: " + stats[3] + " of other submissions\n";
             console.log(memory);
             // Need to click on element first i think
-            // console.log(pullDescription());
+            pullInfo().then(info => {
+                // console.log(desc);
+                let readme = formatReadMe(info["description"], runtime, memory, info["questionId"]);
+                console.log(readme);
+                console.log(getFolderName(info["questionId"]));
+                // uploadGit('galegoer', getFolderName(info["questionId"]), btoa(pullCode()), language);
+            });
             
-            uploadGit('galegoer', getFileName(), btoa(pullCode()), language);
         }
     });
-}
-
-function pullDescription() {
-    let xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[4]/div/div[1]";
-    let description = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    return description.textContent;
-}
-
-// TODO
-function cleanDescription() {
-    // Take out from start and end
-}
-
-function pullCode() {
-    return document.getElementsByTagName('code')[0]
-    .innerText?.replace(/\\u[\dA-F]{4}/gi, function (match) {
-        return String.fromCharCode(
-            parseInt(match.replace(/\\u/g, ''), 16),
-        );
-    });
-}
-
-async function uploadGit(owner, filename, content, language) {
-    // TODO: Maybe specify commiter? Might be done by PAT already though
-    // const committer = {
-    //     name: 'name',
-    //     email: 'email@github.com'
-    // };
-
-    // TODO: maybe timestamp with it to  be unique?
-    let commitMessage = `Uploading solution for ${filename}`;
-
-    // TODO: Auth properties may be undefined for either or both, handle
-    browser.storage.local.get("pat")
-    .then((result) => {
-        AUTH_PROPERTIES["pat"] = result.pat;
-    });
-
-    browser.storage.local.get("repoPath")
-    .then((result) => {
-        AUTH_PROPERTIES["repoPath"] = result.repoPath;
-    });
-
-    if (AUTH_PROPERTIES === undefined || AUTH_PROPERTIES.length != 2) {
-        browser.runtime.sendMessage({ action: "openPopup" });
-    }
-
-    // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
-    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${filename}${language}`, {
-    method: 'PUT',
-    headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: 
-        JSON.stringify({
-            commitMessage,
-            // committer,
-            content
-        })
-    })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error(error));
 }
 
 // TODO: Adjust to load only when you click on page with solution
-
 function waitForElm(selector) {
     return new Promise(resolve => {
-        const result = document.evaluate(
-            selector,
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null
-        );
-        if (result.singleNodeValue) {
+        const element = Array.from(document.querySelectorAll('button'))
+        .find(el => el.textContent === selector);
+        if (element) {
             observer.disconnect();
-            return resolve(result.singleNodeValue);
+            return resolve(element);
         }
 
         const observer = new MutationObserver(mutations => {
-            const result = document.evaluate(
-                selector,
-                document,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null
-            );
-            if (result.singleNodeValue) {
+            const element = Array.from(document.querySelectorAll('button'))
+            .find(el => el.textContent === selector);
+            if (element) {
                 observer.disconnect();
-                resolve(result.singleNodeValue);
+                resolve(element);
             }
         });
 
@@ -207,9 +250,9 @@ function waitForElm(selector) {
         });
     });
 }
-const xpath = "/html/body/div[1]/div[2]/div/div/div[4]/div/div/div[8]/div/div/div/div[2]/div/div[1]/div[2]/button";
 
-waitForElm(xpath).then((elm) => {
+const buttonText = "Solution";
+waitForElm(buttonText).then((elm) => {
     console.log('Element is ready');
     console.log(elm.textContent);
     addButton();
