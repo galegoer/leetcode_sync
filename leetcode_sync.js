@@ -23,16 +23,15 @@ const languages = {
     Oracle: '.sql',
 };
 
-const LANG_CLASS = 'bg-fill-primary dark:bg-fill-primary text-label-2 dark:text-dark-label-2 flex items-center gap-1 rounded-[9px] px-1.5 py-[1px] text-xs'
 
 // TODO: This may change if user clicks memory or runtime use different reference
 const STATS_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
 const UNITS_CLASS = "text-sd-muted-foreground text-sm"; //runtime and memory units
 
-browser.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message) => {
     if (message.action === "openPopup") {
-        browser.windows.create({
-            url: browser.runtime.getURL("popup.html"),
+        chrome.windows.create({
+            url: chrome.runtime.getURL("popup.html"),
             type: "popup",
             width: 600,
             height: 600
@@ -59,7 +58,7 @@ function getTagContents(className, num_tags=1) {
 }
 
 function getFolderName(questionId) {
-    return `${questionId} - ${window.location.href.split("problems/")[1].split("/")[0]}`;
+    return `${questionId}-${window.location.href.split("problems/")[1].split("/")[0]}`;
 }
 
 function cleanHtml(html) {
@@ -109,7 +108,25 @@ function pullCode() {
     });
 }
 
-async function uploadGit(owner, questionName, content, language) {
+function pullBtnText() {
+    var buttons = document.querySelectorAll('.text-text-tertiary');
+    console.log(buttons);
+    
+    for (let i = 0; i < buttons.length; i++) {
+        let button = buttons[i];
+        try {
+            var lang = button.textContent.trim().split("Code")[1];
+            console.log(lang);
+            if (lang in languages) {
+                return lang;
+            }
+        } catch (error) {
+            continue;
+        }
+    }
+}
+
+async function uploadGit(questionName, solutionContent, readMeContent, language) {
     // TODO: Maybe specify commiter? Might be done by PAT already though
     // const committer = {
     //     name: 'name',
@@ -121,59 +138,112 @@ async function uploadGit(owner, questionName, content, language) {
     let commitMessageReadMe = `Uploading readme for ${questionName}`;
 
     // TODO: Auth properties may be undefined for either or both, handle
-    browser.storage.local.get("pat")
-    .then((result) => {
-        AUTH_PROPERTIES["pat"] = result.pat;
+  
+    // Read it using the storage API
+    chrome.storage.sync.get(['pat', 'repoPath', 'owner'], function(items) {
+        AUTH_PROPERTIES["pat"] = items['pat'];
+        AUTH_PROPERTIES["repoPath"] = items['repoPath'];
+        AUTH_PROPERTIES["owner"] = items['owner'];
+
+        if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length !== 3) {
+            chrome.runtime.sendMessage({ action: "openPopup" });
+        }
+
+        const tree = {
+            "tree": [
+                {
+                    "path": `${questionName}/${questionName}${language}`,
+                    "mode": "100644",
+                    "type": "blob",
+                    "content": solutionContent
+                },
+                {
+                    "path": `${questionName}/README.md`,
+                    "mode": "100644",
+                    "type": "blob",
+                    "content": readMeContent
+                },
+            ]
+        };
+
+        // TODO: Make separate function
+        // TODO: Add error handling popup if fails
+        // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
+        // fetch(`https://api.github.com/repos/${AUTH_PROPERTIES.owner}/${AUTH_PROPERTIES.repoPath}/contents/${questionName}/${questionName}${language}`, {
+        fetch(`https://api.github.com/repos/${AUTH_PROPERTIES.owner}/${AUTH_PROPERTIES.repoPath}/git/trees`, {
+            method: 'POST',
+            headers: {
+                    'Accept': 'application/vnd.github+json',
+                    'Authorization': `Bearer ${AUTH_PROPERTIES.pat}`,
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    'Content-Type': 'application/json'
+            },
+            body: 
+                JSON.stringify(tree)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                const commit = {
+                    "message": commitMessageFile,
+                    "tree": data.tree[0].sha
+                }
+                console.log(commit);
+                fetch(`https://api.github.com/repos/${AUTH_PROPERTIES.owner}/${AUTH_PROPERTIES.repoPath}/git/commits`, {
+                    method: 'POST',
+                    headers: {
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': `Bearer ${AUTH_PROPERTIES.pat}`,
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(commit)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    const ref = {
+                        "ref": `refs/heads/${questionName}`,
+                        "sha": data.sha // Use the SHA of the commit created in step 3
+                    };
+                      
+                    fetch(`https://api.github.com/repos/${AUTH_PROPERTIES.owner}/${AUTH_PROPERTIES.repoPath}/git/refs/${questionName}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/vnd.github+json',
+                        'Authorization': `Bearer ${AUTH_PROPERTIES.pat}`,
+                        'X-GitHub-Api-Version': '2022-11-28',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(ref)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                    })
+                })
+            })
+            .catch(error => console.error(error));
+                
+        // Upload readme
+        // fetch(`https://api.github.com/repos/${AUTH_PROPERTIES.owner}/${AUTH_PROPERTIES.repoPath}/contents/${questionName}/README.md`, {
+        //     method: 'PUT',
+        //     headers: {
+        //             'Accept': 'application/vnd.github+json',
+        //             'Authorization': `Bearer ${AUTH_PROPERTIES.pat}`,
+        //             'X-GitHub-Api-Version': '2022-11-28'
+        //     },
+        //     body: 
+        //         JSON.stringify({
+        //                 message: commitMessageReadMe,
+        //                 // committer,
+        //                 content: content
+        //             })
+        //         })
+        //         .then(response => response.json())
+        //         .then(data => console.log(data))
+        //         .catch(error => console.error(error));
     });
-
-    browser.storage.local.get("repoPath")
-    .then((result) => {
-        AUTH_PROPERTIES["repoPath"] = result.repoPath;
-    });
-
-    if (AUTH_PROPERTIES === undefined || AUTH_PROPERTIES.length != 2) {
-        browser.runtime.sendMessage({ action: "openPopup" });
-    }
-
-    // TODO: Make separate function
-    // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
-    const readMeURL = `https://api.github.com/repos/${owner}/contents/${questionName}/README.md`;
-    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${questionName}/${questionName}${language}`, {
-    method: 'PUT',
-    headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: 
-        JSON.stringify({
-            commitMessageFile,
-            // committer,
-            content
-        })
-    })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error(error));
-
-    // Upload readme
-    fetch(`https://api.github.com/repos/${owner}/contents/${questionName}/README.md`, {
-    method: 'PUT',
-    headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: 
-        JSON.stringify({
-            commitMessageReadMe,
-            // committer,
-            content
-        })
-    })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error(error));
 }
 
 function addButton() {
@@ -205,7 +275,7 @@ function addButton() {
             let units = getTagContents(UNITS_CLASS, 2);
             let stats = getTagContents(STATS_CLASS, 4);
             // TODO: This could return undefined
-            let language = languages[getTagContents(LANG_CLASS)];
+            let language = languages[pullBtnText()];
             console.log("Language: " + language);
             let runtime = "### Runtime: " + stats[0] + units[0] + "\n### Beats: " + stats[1] + " of other submissions\n";
             console.log(runtime);
@@ -217,9 +287,8 @@ function addButton() {
                 let readme = formatReadMe(info["description"], runtime, memory, info["questionId"]);
                 console.log(readme);
                 console.log(getFolderName(info["questionId"]));
-                // uploadGit('galegoer', getFolderName(info["questionId"]), btoa(pullCode()), language);
+                uploadGit(getFolderName(info["questionId"]), btoa(pullCode()), btoa(readme), language);
             });
-            
         }
     });
 }
