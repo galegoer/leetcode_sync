@@ -1,4 +1,5 @@
 const AUTH_PROPERTIES = {};
+const GITHUB_API_URL = "https://api.github.com";
 
 /* Enum for languages supported by LeetCode. */
 const languages = {
@@ -29,10 +30,10 @@ const LANG_CLASS = 'bg-fill-primary dark:bg-fill-primary text-label-2 dark:text-
 const STATS_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
 const UNITS_CLASS = "text-sd-muted-foreground text-sm"; //runtime and memory units
 
-browser.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message) => {
     if (message.action === "openPopup") {
-        browser.windows.create({
-            url: browser.runtime.getURL("popup.html"),
+        chrome.windows.create({
+            url: chrome.runtime.getURL("popup.html"),
             type: "popup",
             width: 600,
             height: 600
@@ -109,71 +110,164 @@ function pullCode() {
     });
 }
 
-async function uploadGit(owner, questionName, content, language) {
+const getAuthProperties = async () => {
+    return new Promise(resolve => {
+        //     // TODO: Change to repoName
+        chrome.storage.local.get(["pat", "repoPath"], result => {
+            console.log(result);
+            resolve(result);
+        });
+    });
+};
+
+async function uploadGit(owner, questionName, files) {
     // TODO: Maybe specify commiter? Might be done by PAT already though
     // const committer = {
     //     name: 'name',
     //     email: 'email@github.com'
     // };
-
+    
     // TODO: maybe timestamp with it to  be unique?
-    let commitMessageFile = `Uploading solution for ${questionName}`;
-    let commitMessageReadMe = `Uploading readme for ${questionName}`;
+    let commitMessage = `Uploading solution and readme for ${questionName}`;
+    const AUTH_PROPERTIES = await getAuthProperties();
 
     // TODO: Auth properties may be undefined for either or both, handle
-    browser.storage.local.get("pat")
-    .then((result) => {
-        AUTH_PROPERTIES["pat"] = result.pat;
-    });
-
-    browser.storage.local.get("repoPath")
-    .then((result) => {
-        AUTH_PROPERTIES["repoPath"] = result.repoPath;
-    });
-
-    if (AUTH_PROPERTIES === undefined || AUTH_PROPERTIES.length != 2) {
-        browser.runtime.sendMessage({ action: "openPopup" });
+    console.log(AUTH_PROPERTIES);
+    if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length != 2) {
+        chrome.runtime.sendMessage({ action: "openPopup" });
+        return;
     }
 
     // TODO: Make separate function
     // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
-    const readMeURL = `https://api.github.com/repos/${owner}/contents/${questionName}/README.md`;
-    fetch(`https://api.github.com/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}}/contents/${questionName}/${questionName}${language}`, {
-    method: 'PUT',
-    headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: 
-        JSON.stringify({
-            commitMessageFile,
-            // committer,
-            content
-        })
-    })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error(error));
 
-    // Upload readme
-    fetch(`https://api.github.com/repos/${owner}/contents/${questionName}/README.md`, {
-    method: 'PUT',
-    headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': `Bearer ${AUTH_PROPERTIES["pat"]}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: 
-        JSON.stringify({
-            commitMessageReadMe,
-            // committer,
-            content
+    // Fetch the latest commit SHA of the branch
+    const branchInfoResponse = await fetch(
+        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/ref/heads/main`,
+        {
+            headers: {
+                Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+                Accept: "application/vnd.github+json",
+            },
+        }
+    );
+
+    if (!branchInfoResponse.ok) {
+        throw new Error("Failed to fetch branch info");
+    }
+
+    const branchInfo = await branchInfoResponse.json();
+    const latestCommitSha = branchInfo.object.sha;
+
+    // Fetch the tree associated with the latest commit
+    const commitInfoResponse = await fetch(
+        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/commits/${latestCommitSha}`,
+        {
+            headers: {
+                Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+                Accept: "application/vnd.github+json",
+            },
+        }
+    );
+
+    if (!commitInfoResponse.ok) {
+        throw new Error("Failed to fetch commit info");
+    }
+
+    const commitInfo = await commitInfoResponse.json();
+    const treeSha = commitInfo.tree.sha;
+
+    // Prepare the blobs (files to upload)
+    const blobs = await Promise.all(
+        files.map(async (file) => {
+            const blobResponse = await fetch(
+                `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/blobs`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+                        Accept: "application/vnd.github+json",
+                    },
+                    body: JSON.stringify({
+                        content: file.content,
+                        encoding: "utf-8",
+                    }),
+                }
+            );
+
+            if (!blobResponse.ok) {
+                throw new Error(`Failed to create blob for file: ${file.path}`);
+            }
+
+            const blobData = await blobResponse.json();
+            return {
+                path: file.path,
+                mode: "100644", // Regular file mode
+                type: "blob",
+                sha: blobData.sha,
+            };
         })
-    })
-    .then(response => response.json())
-    .then(data => console.log(data))
-    .catch(error => console.error(error));
+    );
+
+    // Create a new tree with the blobs
+    const treeResponse = await fetch(`${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/trees`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+            Accept: "application/vnd.github+json",
+        },
+        body: JSON.stringify({
+            base_tree: treeSha,
+            tree: blobs,
+        }),
+    });
+
+    if (!treeResponse.ok) {
+        throw new Error("Failed to create tree");
+    }
+
+    const treeData = await treeResponse.json();
+
+    // Create a new commit
+    const commitResponse = await fetch(`${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/commits`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+            Accept: "application/vnd.github+json",
+        },
+        body: JSON.stringify({
+            message: commitMessage,
+            tree: treeData.sha,
+            parents: [latestCommitSha],
+        }),
+    });
+
+    if (!commitResponse.ok) {
+        throw new Error("Failed to create commit");
+    }
+
+    const commitData = await commitResponse.json();
+
+    // Update the branch reference to point to the new commit
+    const updateBranchResponse = await fetch(
+        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/refs/heads/main`,
+        {
+            method: "PATCH",
+            headers: {
+                Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
+                Accept: "application/vnd.github+json",
+            },
+            body: JSON.stringify({
+                sha: commitData.sha,
+            }),
+        }
+    );
+
+    if (!updateBranchResponse.ok) {
+        throw new Error("Failed to update branch reference");
+    }
+    // TODO: ADD success popup and url to view
+    console.log("Files committed successfully");
 }
 
 function addButton() {
@@ -213,11 +307,15 @@ function addButton() {
             console.log(memory);
             // Need to click on element first i think
             pullInfo().then(info => {
-                // console.log(desc);
                 let readme = formatReadMe(info["description"], runtime, memory, info["questionId"]);
                 console.log(readme);
-                console.log(getFolderName(info["questionId"]));
-                // uploadGit('galegoer', getFolderName(info["questionId"]), btoa(pullCode()), language);
+                let questionName = getFolderName(info["questionId"]);
+                console.log(questionName);
+                let files = [
+                    { path: `${questionName}/${questionName}${language}`, content: btoa(pullCode()) },
+                    { path: `${questionName}/README.md`, content: readme },
+                ];
+                uploadGit('galegoer', questionName, files);
             });
             
         }
