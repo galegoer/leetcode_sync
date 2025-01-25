@@ -1,1 +1,17 @@
-Y2xhc3MgU29sdXRpb246CiAgICBkZWYgY2FuUGxhY2VGbG93ZXJzKHNlbGYsIGZsb3dlcmJlZDogTGlzdFtpbnRdLCBuOiBpbnQpIC0+IGJvb2w6CiAgICAgICAgaW5kID0gMAogICAgICAgIGNvdW50ID0gMAogICAgICAgIG5ld19mID0gWzBdICsgZmxvd2VyYmVkICsgWzBdCgogICAgICAgIHdoaWxlIGluZCA8IGxlbihuZXdfZikgLSAyOgoKICAgICAgICAgICAgaWYgbmV3X2ZbaW5kXSA9PSAwIGFuZCBuZXdfZltpbmQrMV0gPT0gMCBhbmQgbmV3X2ZbaW5kKzJdID09IDA6CiAgICAgICAgICAgICAgICBjb3VudCArPSAxCiAgICAgICAgICAgICAgICBpbmQgKz0gMgogICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgaW5kICs9IDEKICAgICAgICAKICAgICAgICBpZiBjb3VudCA+PSBuOgogICAgICAgICAgICByZXR1cm4gVHJ1ZQogICAgICAgIHJldHVybiBGYWxzZQ==
+class Solution:
+    def canPlaceFlowers(self, flowerbed: List[int], n: int) -> bool:
+        ind = 0
+        count = 0
+        new_f = [0] + flowerbed + [0]
+
+        while ind < len(new_f) - 2:
+
+            if new_f[ind] == 0 and new_f[ind+1] == 0 and new_f[ind+2] == 0:
+                count += 1
+                ind += 2
+            else:
+                ind += 1
+        
+        if count >= n:
+            return True
+        return False
