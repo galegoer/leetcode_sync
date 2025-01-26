@@ -24,7 +24,6 @@ const languages = {
     Oracle: '.sql',
 };
 
-const LANG_CLASS = 'bg-fill-primary dark:bg-fill-primary text-label-2 dark:text-dark-label-2 flex items-center gap-1 rounded-[9px] px-1.5 py-[1px] text-xs'
 
 // TODO: This may change if user clicks memory or runtime use different reference
 const STATS_CLASS = "text-sd-foreground text-lg font-semibold"; //runtime and mem class
@@ -60,7 +59,7 @@ function getTagContents(className, num_tags=1) {
 }
 
 function getFolderName(questionId) {
-    return `${questionId} - ${window.location.href.split("problems/")[1].split("/")[0]}`;
+    return `${questionId}-${window.location.href.split("problems/")[1].split("/")[0]}`;
 }
 
 function cleanHtml(html) {
@@ -112,28 +111,45 @@ function pullCode() {
 
 const getAuthProperties = async () => {
     return new Promise(resolve => {
-        //     // TODO: Change to repoName
-        chrome.storage.local.get(["pat", "repoPath"], result => {
+        // TODO: Change to repoName
+        chrome.storage.local.get(["pat", "repoPath", "owner"], result => {
             console.log(result);
             resolve(result);
         });
     });
 };
 
-async function uploadGit(owner, questionName, files) {
+function pullBtnText() {
+    var buttons = document.querySelectorAll('.text-text-tertiary');
+    console.log(buttons);
+    
+    for (let i = 0; i < buttons.length; i++) {
+        let button = buttons[i];
+        try {
+            var lang = button.textContent.trim().split("Code")[1];
+            console.log(lang);
+            if (lang in languages) {
+                return lang;
+            }
+        } catch (error) {
+            continue;
+        }
+    }
+}
+async function uploadGit(questionName, files) {
     // TODO: Maybe specify commiter? Might be done by PAT already though
     // const committer = {
     //     name: 'name',
     //     email: 'email@github.com'
     // };
     
-    // TODO: maybe timestamp with it to  be unique?
     let commitMessage = `Uploading solution and readme for ${questionName}`;
+    // TODO: Make them variables rather than having to access the object key values
     const AUTH_PROPERTIES = await getAuthProperties();
 
     // TODO: Auth properties may be undefined for either or both, handle
     console.log(AUTH_PROPERTIES);
-    if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length != 2) {
+    if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length !== 3) {
         chrome.runtime.sendMessage({ action: "openPopup" });
         return;
     }
@@ -143,7 +159,7 @@ async function uploadGit(owner, questionName, files) {
 
     // Fetch the latest commit SHA of the branch
     const branchInfoResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/ref/heads/main`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/ref/heads/main`,
         {
             headers: {
                 Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -161,7 +177,7 @@ async function uploadGit(owner, questionName, files) {
 
     // Fetch the tree associated with the latest commit
     const commitInfoResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/commits/${latestCommitSha}`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/commits/${latestCommitSha}`,
         {
             headers: {
                 Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -177,11 +193,10 @@ async function uploadGit(owner, questionName, files) {
     const commitInfo = await commitInfoResponse.json();
     const treeSha = commitInfo.tree.sha;
 
-    // Prepare the blobs (files to upload)
     const blobs = await Promise.all(
         files.map(async (file) => {
             const blobResponse = await fetch(
-                `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/blobs`,
+                `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/blobs`,
                 {
                     method: "POST",
                     headers: {
@@ -190,7 +205,6 @@ async function uploadGit(owner, questionName, files) {
                     },
                     body: JSON.stringify({
                         content: file.content,
-                        encoding: "utf-8",
                     }),
                 }
             );
@@ -210,7 +224,7 @@ async function uploadGit(owner, questionName, files) {
     );
 
     // Create a new tree with the blobs
-    const treeResponse = await fetch(`${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/trees`, {
+    const treeResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/trees`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -229,7 +243,7 @@ async function uploadGit(owner, questionName, files) {
     const treeData = await treeResponse.json();
 
     // Create a new commit
-    const commitResponse = await fetch(`${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/commits`, {
+    const commitResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/commits`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -250,7 +264,7 @@ async function uploadGit(owner, questionName, files) {
 
     // Update the branch reference to point to the new commit
     const updateBranchResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${owner}/${AUTH_PROPERTIES["repoPath"]}/git/refs/heads/main`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/refs/heads/main`,
         {
             method: "PATCH",
             headers: {
@@ -299,7 +313,7 @@ function addButton() {
             let units = getTagContents(UNITS_CLASS, 2);
             let stats = getTagContents(STATS_CLASS, 4);
             // TODO: This could return undefined
-            let language = languages[getTagContents(LANG_CLASS)];
+            let language = languages[pullBtnText()];
             console.log("Language: " + language);
             let runtime = "### Runtime: " + stats[0] + units[0] + "\n### Beats: " + stats[1] + " of other submissions\n";
             console.log(runtime);
@@ -312,12 +326,11 @@ function addButton() {
                 let questionName = getFolderName(info["questionId"]);
                 console.log(questionName);
                 let files = [
-                    { path: `${questionName}/${questionName}${language}`, content: btoa(pullCode()) },
+                    { path: `${questionName}/${questionName}${language}`, content: pullCode() },
                     { path: `${questionName}/README.md`, content: readme },
                 ];
-                uploadGit('galegoer', questionName, files);
+                uploadGit(questionName, files);
             });
-            
         }
     });
 }
