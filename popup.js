@@ -1,3 +1,18 @@
+// Change buttons and text input based on local storage
+chrome.storage.local.get(["pat", "repoPath", "owner"], items => {    
+    if (items["pat"]) {
+        document.getElementById("pat").value = items["pat"];
+    }
+
+    if (items["repoPath"]) {
+        document.getElementById("repoPath").value = items["repoPath"];
+    }
+
+    if (items["owner"]) {
+        document.getElementById("owner").value = items["owner"];
+    }
+});
+
 document.getElementById("detailsBtn").addEventListener("click", function () {
     const patElement = document.getElementById("pat");
     const pat = patElement.value;
