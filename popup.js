@@ -1,3 +1,18 @@
+function createDetailsDiv(innerHTML, color) {
+    let auth_details_msg = document.getElementById('auth_details_msg');
+    if (auth_details_msg !== null) {
+        auth_details_msg.remove();
+    }
+    auth_details_msg = document.createElement('div');
+    auth_details_msg.id = 'auth_details_msg';
+    auth_details_msg.innerHTML = innerHTML;
+    auth_details_msg.style.color = color;
+    
+    let container_block = document.getElementById('auth_details');
+    container_block.append(auth_details_msg); 
+    return;
+}
+
 // Change buttons and text input based on local storage
 chrome.storage.local.get(["pat", "repoPath", "owner"], items => {    
     if (items["pat"]) {
@@ -22,19 +37,15 @@ document.getElementById("detailsBtn").addEventListener("click", function () {
 
     const ownerElement = document.getElementById("owner");
     const owner = ownerElement.value;
-    console.log(pat);
-    console.log(repoPath);
-    console.log(owner);
 
     if (pat == "" || repoPath == "" || owner == "") {
-        // TODO: add error popup in red
-        console.log('one of the params is empty');
-        return;
+        return createDetailsDiv("One of the parameters is empty please fill them all out.", "red");
+    } else {
+        createDetailsDiv("Successly saved details!", "green");
     }
     // Doesn't work with firefox
     // chrome.storage.sync.set({ "pat": pat, "repoPath": repoPath, "owner": owner }, () => {
     chrome.storage.local.set({ "pat": pat, "repoPath": repoPath, "owner": owner }, () => {
         console.log('Added to browser storage');
     });
-    // TODO: add success popup
 });
