@@ -74,7 +74,14 @@ function formatReadMe(description, runtime, memory, questionId) {
     let title = "# Leetcode Problem " + questionId + " - "+ description.split(" - ")[0] + "\n";
     let stats = "## My Solution Stats\n" + runtime + memory;
     let desc = "## Description \n" + description.split(" - ")[1];
-    return title + stats + desc;
+    let readme = title + stats + desc;
+    let count = 0;
+    const adjustedReadme = readme.replace(/\[(https:\/\/.*?)\]/g, (_, url) => {
+        count++;
+        return `![example-${count}](${url})`;
+    });
+
+    return adjustedReadme;
 }
 
 function pullInfo() {

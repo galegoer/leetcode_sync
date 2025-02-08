@@ -30,7 +30,6 @@ https://github.com/galegoer/leetcode_sync/tree/main/2185-counting-words-with-a-g
 - Currently if you upload to the same path with the same file it will replace your current solution
 
 ## TODO / Goals:
-- Would prefer solution button to popup when you click on the submission rather than having to refresh the page when you are at the submission url
-- Images added to your submission when submitting solutions where the description includes images
+- Solution button to popup when you click on the submission rather than having to refresh the page when you are at the submission url
 - Submit multiple solutions with same filetype
 - Option for branches or branching
