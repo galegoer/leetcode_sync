@@ -151,6 +151,7 @@ async function uploadGit(questionName, files) {
     console.log(AUTH_PROPERTIES);
     if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length !== 3) {
         chrome.runtime.sendMessage({ action: "openPopup" });
+        alert('Please input your credentials');
         return;
     }
 
@@ -329,7 +330,11 @@ function addButton() {
                     { path: `${questionName}/${questionName}${language}`, content: pullCode() },
                     { path: `${questionName}/README.md`, content: readme },
                 ];
-                uploadGit(questionName, files);
+                uploadGit(questionName, files).
+                catch(error => {
+                    console.error(error);
+                    alert(`There was an issue with uploading your solution. Please try again. Error message: ${error}`);
+                });
             });
         }
     });
