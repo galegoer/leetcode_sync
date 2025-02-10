@@ -74,7 +74,14 @@ function formatReadMe(description, runtime, memory, questionId) {
     let title = "# Leetcode Problem " + questionId + " - "+ description.split(" - ")[0] + "\n";
     let stats = "## My Solution Stats\n" + runtime + memory;
     let desc = "## Description \n" + description.split(" - ")[1];
-    return title + stats + desc;
+    let readme = title + stats + desc;
+    let count = 0;
+    const adjustedReadme = readme.replace(/\[(https:\/\/.*?)\]/g, (_, url) => {
+        count++;
+        return `![example-${count}](${url})`;
+    });
+
+    return adjustedReadme;
 }
 
 function pullInfo() {
@@ -151,6 +158,7 @@ async function uploadGit(questionName, files) {
     console.log(AUTH_PROPERTIES);
     if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length !== 3) {
         chrome.runtime.sendMessage({ action: "openPopup" });
+        alert('Please input your credentials');
         return;
     }
 
@@ -329,7 +337,11 @@ function addButton() {
                     { path: `${questionName}/${questionName}${language}`, content: pullCode() },
                     { path: `${questionName}/README.md`, content: readme },
                 ];
-                uploadGit(questionName, files);
+                uploadGit(questionName, files).
+                catch(error => {
+                    console.error(error);
+                    alert(`There was an issue with uploading your solution. Please try again. Error message: ${error}`);
+                });
             });
         }
     });
