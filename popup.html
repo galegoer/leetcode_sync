@@ -19,16 +19,18 @@
         </h1>
         <p id="caption">Directly upload your solutions from LeetCode to GitHub</p>
         <br />
-        <!-- TODO: Populate based on whats in storage -->
         <div id="auth_details">
             <label for="pat">Personal Access Token for Github:</label>
             <input type="text" id="pat" name="pat"></input>
             <br/>
-            <label for="repoPath">Repo Path for Github:</label>
-            <input type="text" id="repoPath" name="repoPath"></input>
+            <label for="repo">Repo Name:</label>
+            <input type="text" id="repo" name="repo"></input>
             <br/>
             <label for="owner">Owner of Github Repository:</label>
             <input type="text" id="owner" name="owner"></input>
+            <br/>
+            <label for="directoryPath">(Optional) Directory Path:</label>
+            <input type="text" id="directoryPath" name="directoryPath"></input>
             <br/>
             <button id="detailsBtn" type="button">Save Details</button>
         </div>

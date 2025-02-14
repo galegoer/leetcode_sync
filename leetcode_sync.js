@@ -1,4 +1,4 @@
-const AUTH_PROPERTIES = {};
+AUTH_PROPERTIES = {};
 const GITHUB_API_URL = "https://api.github.com";
 
 /* Enum for languages supported by LeetCode. */
@@ -118,8 +118,7 @@ function pullCode() {
 
 const getAuthProperties = async () => {
     return new Promise(resolve => {
-        // TODO: Change to repoName
-        chrome.storage.local.get(["pat", "repoPath", "owner"], result => {
+        chrome.storage.local.get(["pat", "directoryPath", "owner", "repo"], result => {
             console.log(result);
             resolve(result);
         });
@@ -151,23 +150,13 @@ async function uploadGit(questionName, files) {
     // };
     
     let commitMessage = `Uploading solution and readme for ${questionName}`;
-    // TODO: Make them variables rather than having to access the object key values
-    const AUTH_PROPERTIES = await getAuthProperties();
-
-    // TODO: Auth properties may be undefined for either or both, handle
-    console.log(AUTH_PROPERTIES);
-    if (AUTH_PROPERTIES === undefined || Object.keys(AUTH_PROPERTIES).length !== 3) {
-        chrome.runtime.sendMessage({ action: "openPopup" });
-        alert('Please input your credentials');
-        return;
-    }
 
     // TODO: Make separate function
     // https://api.github.com/repos/YourUsername/YourRepo/contents/f1/f2/file.txt
 
     // Fetch the latest commit SHA of the branch
     const branchInfoResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/ref/heads/main`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/ref/heads/main`,
         {
             headers: {
                 Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -185,7 +174,7 @@ async function uploadGit(questionName, files) {
 
     // Fetch the tree associated with the latest commit
     const commitInfoResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/commits/${latestCommitSha}`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/commits/${latestCommitSha}`,
         {
             headers: {
                 Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -204,7 +193,7 @@ async function uploadGit(questionName, files) {
     const blobs = await Promise.all(
         files.map(async (file) => {
             const blobResponse = await fetch(
-                `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/blobs`,
+                `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/blobs`,
                 {
                     method: "POST",
                     headers: {
@@ -232,7 +221,7 @@ async function uploadGit(questionName, files) {
     );
 
     // Create a new tree with the blobs
-    const treeResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/trees`, {
+    const treeResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/trees`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -251,7 +240,7 @@ async function uploadGit(questionName, files) {
     const treeData = await treeResponse.json();
 
     // Create a new commit
-    const commitResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/commits`, {
+    const commitResponse = await fetch(`${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/commits`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${AUTH_PROPERTIES["pat"]}`,
@@ -272,7 +261,7 @@ async function uploadGit(questionName, files) {
 
     // Update the branch reference to point to the new commit
     const updateBranchResponse = await fetch(
-        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repoPath"]}/git/refs/heads/main`,
+        `${GITHUB_API_URL}/repos/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/git/refs/heads/main`,
         {
             method: "PATCH",
             headers: {
@@ -327,20 +316,30 @@ function addButton() {
             console.log(runtime);
             let memory = "### Memory: " + stats[2] + units[1] + "\n### Beats: " + stats[3] + " of other submissions\n";
             console.log(memory);
-            // Need to click on element first i think
+            
+            // TODO: Clean this up dont like two nested then blocks
             pullInfo().then(info => {
                 let readme = formatReadMe(info["description"], runtime, memory, info["questionId"]);
                 console.log(readme);
                 let questionName = getFolderName(info["questionId"]);
                 console.log(questionName);
-                let files = [
-                    { path: `${questionName}/${questionName}${language}`, content: pullCode() },
-                    { path: `${questionName}/README.md`, content: readme },
-                ];
-                uploadGit(questionName, files).
-                catch(error => {
-                    console.error(error);
-                    alert(`There was an issue with uploading your solution. Please try again. Error message: ${error}`);
+
+                getAuthProperties().then(result => {
+                    if (result === undefined || Object.keys(result).length < 3) {
+                        chrome.runtime.sendMessage({ action: "openPopup" });
+                        alert('Please input your credentials');
+                        return;
+                    }
+                    AUTH_PROPERTIES = result;
+
+                    let files = [
+                        { path: `${AUTH_PROPERTIES["directoryPath"]}${questionName}/${questionName}${language}`, content: pullCode() },
+                        { path: `${AUTH_PROPERTIES["directoryPath"]}${questionName}/README.md`, content: readme },
+                    ];
+                    uploadGit(questionName, files).catch(error => {
+                        console.error(error);
+                        alert(`There was an issue with uploading your solution. Please try again. Error message: ${error}`);
+                    });
                 });
             });
         }
