@@ -14,17 +14,21 @@ function createDetailsDiv(innerHTML, color) {
 }
 
 // Change buttons and text input based on local storage
-chrome.storage.local.get(["pat", "repoPath", "owner"], items => {    
+chrome.storage.local.get(["pat", "directoryPath", "owner", "repo"], items => {    
     if (items["pat"]) {
         document.getElementById("pat").value = items["pat"];
     }
 
-    if (items["repoPath"]) {
-        document.getElementById("repoPath").value = items["repoPath"];
+    if (items["directoryPath"]) {
+        document.getElementById("directoryPath").value = items["directoryPath"];
     }
 
     if (items["owner"]) {
         document.getElementById("owner").value = items["owner"];
+    }
+
+    if (items["repo"]) {
+        document.getElementById("repo").value = items["repo"];
     }
 });
 
@@ -32,20 +36,26 @@ document.getElementById("detailsBtn").addEventListener("click", function () {
     const patElement = document.getElementById("pat");
     const pat = patElement.value;
 
-    const repoPathElement = document.getElementById("repoPath");
-    const repoPath = repoPathElement.value;
+    let directoryPathElement = document.getElementById("directoryPath");
+    let directoryPath = directoryPathElement.value;
+
+    const repoElement = document.getElementById("repo");
+    const repo = repoElement.value;
 
     const ownerElement = document.getElementById("owner");
     const owner = ownerElement.value;
 
-    if (pat == "" || repoPath == "" || owner == "") {
+    if (pat == "" || repo == "" || owner == "") {
         return createDetailsDiv("One of the parameters is empty please fill them all out.", "red");
-    } else {
-        createDetailsDiv("Successly saved details!", "green");
     }
+    if (directoryPath !== "" && directoryPath[directoryPath.length - 1] !== "/") {
+        directoryPath = directoryPath+"/";
+    }
+    createDetailsDiv("Successly saved details!", "green");
+
     // Doesn't work with firefox
-    // chrome.storage.sync.set({ "pat": pat, "repoPath": repoPath, "owner": owner }, () => {
-    chrome.storage.local.set({ "pat": pat, "repoPath": repoPath, "owner": owner }, () => {
+    // chrome.storage.sync.set({ "pat": pat, "directoryPath": directoryPath, "owner": owner }, () => {
+    chrome.storage.local.set({ "pat": pat, "directoryPath": directoryPath, "owner": owner, "repo": repo }, () => {
         console.log('Added to browser storage');
     });
 });
