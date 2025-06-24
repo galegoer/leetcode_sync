@@ -63,6 +63,7 @@ function getFolderName(questionId) {
 }
 
 function cleanHtml(html) {
+    // console.log(html);
     let questionId = html.split("questionFrontendId\":\"")[1].split("\",")[0];
     let temp = html.split("\"/><meta property=\"og:title")[0];
     let desc = temp.split("<meta name=\"description\" content=\"Can you solve this real interview question? ");
@@ -73,7 +74,7 @@ function cleanHtml(html) {
 function formatReadMe(description, runtime, memory, questionId) {
     let title = "# Leetcode Problem " + questionId + " - "+ description.split(" - ")[0] + "\n";
     let stats = "## My Solution Stats\n" + runtime + memory;
-    let desc = "## Description \n" + description.split(" - ")[1];
+    let desc = "## Description \n" + description.split("\" data-next-head")[0];
     let readme = title + stats + desc;
     let count = 0;
     const adjustedReadme = readme.replace(/\[(https:\/\/.*?)\]/g, (_, url) => {
@@ -90,6 +91,7 @@ function pullInfo() {
     return fetch(`${url}/description`)
     .then(response => {
         if (!response.ok) {
+            console.error("Question Info not found in fetched content.");
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
         return response.text();
@@ -101,6 +103,7 @@ function pullInfo() {
             return questionInfo;
         } else {
             console.error("Question Info not found in fetched content.");
+            throw new Error('Question Info not found in fetched content.');
         }
     })
     .catch(error => console.error("Error fetching URL:", error));
@@ -273,11 +276,11 @@ async function uploadGit(questionName, files) {
             }),
         }
     );
-
     if (!updateBranchResponse.ok) {
         throw new Error("Failed to update branch reference");
     }
     // TODO: ADD success popup and url to view
+    alert(`Solution successfully uploaded to github! \n Visit it at the following url: https://github.com/${AUTH_PROPERTIES["owner"]}/${AUTH_PROPERTIES["repo"]}/tree/main/${AUTH_PROPERTIES["directoryPath"]}${questionName}`);
     console.log("Files committed successfully");
 }
 
